@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yetone/magpie/internal/netproxy"
 	"github.com/yetone/magpie/internal/source"
 )
 
@@ -33,6 +34,9 @@ var dl struct {
 // whose server doesn't answer by the header timeout.
 var client = func() *http.Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
+	// through Settings' Proxy as every other request of magpie's is: the
+	// clone is made before netproxy.Install sets it on http.DefaultTransport
+	t.Proxy = netproxy.Func
 	t.ResponseHeaderTimeout = 60 * time.Second
 	return &http.Client{Transport: t}
 }()
