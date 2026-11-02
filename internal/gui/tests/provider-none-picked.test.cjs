@@ -132,9 +132,10 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       for (const id of ["glm-5.3-free", "glm-5.2"]) assert.deepEqual(await cls(id), [false, false], id + " usage only");
       await editor.getByText(w.none, { exact: false }).waitFor();
       assert.equal(await serves(), w.usage);
-      // Picked only from there picks what the vendor's list serves
+      // Picked only from there picks nothing: the vendor's list served
+      // ticking them all, which read as Select all and was saved as picks
       await editor.locator(".mserves .opt[data-serves=picked]").click();
-      for (const id of ["glm-5.3-free", "glm-5.2"]) assert.deepEqual(await cls(id), [true, false], id + " picked from the vendor's list");
+      for (const id of ["glm-5.3-free", "glm-5.2"]) assert.deepEqual(await cls(id), [false, false], id + " not picked by Picked only");
       assert.equal(await serves(), w.picked);
       await editor.locator(".mserves .opt[data-serves=none]").click();
       await chip("glm-5.2").click();

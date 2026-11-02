@@ -9969,6 +9969,8 @@ function drawEditor(p, presetID) {
   cancel.onclick = cancelEdit;
   const saveBtn = el("button", "text primary", t(isNew ? "Add" : "Save"));
   const save = () => {
+    // Picked only with nothing picked: the vendor's list would be served
+    if (p && draft.picking && !chosenIds().length) return editorError(t("Pick a model first."), "warn");
     // a typed icon address first; one that fails stays (hoobnn)
     const waiting = custom && ed.iconFlush?.();
     if (waiting) return waiting.then((ok) => ok && save());
@@ -10984,7 +10986,7 @@ const bestChosen = () => !!draft.best && !draft.none && !chosenIds().length;
 
 // servedIds: the models the provider serves as the editor has it: the
 // picks; none after Select none; else those the vendor's list serves
-const servedIds = (p) => draft.chosen.length ? draft.chosen : draft.none ? [] : p.models.filter((m) => draft.best ? m.best : m.on).map((m) => m.id);
+const servedIds = (p) => draft.chosen.length ? draft.chosen : draft.none || draft.picking ? [] : p.models.filter((m) => draft.best ? m.best : m.on).map((m) => m.id);
 
 // modelsOpen: a provider editor's models let out to their full height
 // (#833), kept for the next editor. MCHIPS_MAX: the box's height held, as
@@ -11170,10 +11172,10 @@ function renderModels(p) {
     const picksOnly = draft.chosen.length && !f && unpickedShown !== p.id && !decideOnly(p);
     // none picked: what the vendor's list serves is drawn as served (#614,
     // #1818), none after Select none
-    const served = draft.chosen.length || decideOnly(p) || draft.none ? new Set() : new Set(dashed());
+    const served = draft.chosen.length || draft.picking || decideOnly(p) || draft.none ? new Set() : new Set(dashed());
     // models that would read alike say what tells them apart (modelTells)
     const tells = modelTells(p.models);
-    // a filter is a search: what it doesn't match is left out, picked or not
+    // a filter is a search: what it doesn't match is left out
     for (const m of p.models) {
       const on = draft.chosen.includes(m.id);
       if (f && !m.id.toLowerCase().includes(f) && !(m.name || "").toLowerCase().includes(f) && !(m.default || "").toLowerCase().includes(f)) continue;
@@ -11214,12 +11216,8 @@ function renderModels(p) {
       tested(c, m.id);
       menu(c, m.id);
       // a click picks the model, a served one too: with none picked it
-      // becomes the only pick. A served one clicked used to be left out,
-      // the rest of what was served picked in its place, so a click on
-      // the one model wanted ticked every other (#681)
-      // once one is picked the provider serves its picks, so the last
-      // unpicked leaves none, not the vendor's list again (#1831, kchen0x:
-      // unpicking it went back to exposing every model)
+      // becomes the only pick (#681). The last unpicked leaves none, not
+      // the vendor's list again (#1831, kchen0x)
       c.onclick = () => {
         draft.chosen = on ? draft.chosen.filter((x) => x !== m.id) : [...draft.chosen, m.id];
         draft.none = true;
@@ -11249,6 +11247,7 @@ function renderModels(p) {
     drawWorkOn();
     drawServes();
     why.textContent = decideOnly(p) ? t("Agents never see them: a routing group picks one as its classifier.")
+      : !draft.chosen.length && draft.picking ? t("Pick a model first.")
       : !draft.chosen.length && draft.none ? t("None selected: no agent or routing group uses its models. Its balance and usage still show. Click a model to pick it.")
       : bestChosen() && !draft.unlisted ? t("Best in family: agents see the newest model of each family it lists (dashed), up to {n}. A newer one it lists later takes the old one's place.", { n: 24 })
       : draft.unlisted ? t(draft.chosen.length ? "Agents don't see them: only the routing groups they are in use them." : "Vendor's list: agents don't see it, the routing groups its models are in use up to {n} of it (dashed). Click a model to pick just it.", { n: 24 })
@@ -11654,9 +11653,8 @@ function renderModels(p) {
     names.style.minHeight = "";
     names.scrollTop = top;
   };
-  // what the provider serves, in words (#1831): the vendor's list, the
-  // picks (a click on a model, Select all or none), the newest of each
-  // family, or Usage only (#2068). Picked only starts from the dashed ones
+  // what the provider serves, in words (#1831, #2068): the vendor's list,
+  // the picks, the newest of each family, or Usage only
   const serves = el("div", "segs mserves");
   const servesOpts = [["list", "Vendor's list", "Serve the vendor's list, up to {n} of it (dashed), models it lists later too"], ["picked", "Picked only", "Serve only the models picked"], ["best", "Best in family", "Best in family: agents see the newest model of each family it lists (dashed), up to {n}. A newer one it lists later takes the old one's place."], ["none", "Usage only", "Route nothing to it: no agent or routing group uses its models, and those it lists later aren't added. Its balance and usage still show."]].map(([v, name, tip]) => {
     const b = el("button", "opt", t(name));
@@ -11664,10 +11662,12 @@ function renderModels(p) {
     b.title = t(tip, { n: 24 });
     b.onclick = () => {
       if (v !== "picked" && draft.chosen.length) picksLeft = { id: p.id, picks: [...draft.chosen] };
-      if (v !== "picked") { draft.chosen = []; draft.typed = ""; draft.none = v === "none"; draft.best = v === "best"; }
+      if (v !== "picked") { draft.chosen = []; draft.typed = ""; draft.none = v === "none"; draft.best = v === "best"; draft.picking = false; }
       else {
         if (!draft.chosen.length && picksLeft?.id === p.id) { draft.chosen = picksLeft.picks; draft.none = true; }
-        if (!draft.chosen.length) { draft.chosen = dashed(); draft.none = true; }
+        // nothing picked: it picks nothing. Ticking the first 24 the
+        // vendor's list serves read as Select all, and was saved as picks.
+        draft.picking = !draft.chosen.length;
         unpickedShown = null; draft.best = false;
       }
       draw();
@@ -11675,7 +11675,7 @@ function renderModels(p) {
     serves.append(b);
     return b;
   });
-  const servesMode = () => draft.chosen.length ? "picked" : draft.none ? "none" : draft.best ? "best" : "list";
+  const servesMode = () => draft.chosen.length || draft.picking ? "picked" : draft.none ? "none" : draft.best ? "best" : "list";
   const drawServes = () => {
     const now = servesMode();
     for (const b of servesOpts) { b.classList.toggle("on", b.dataset.serves === now); b.setAttribute("aria-pressed", b.dataset.serves === now); }
