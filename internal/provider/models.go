@@ -1720,6 +1720,16 @@ func (p Provider) withNewlyListed(picks []string, avail []catalog.Model) []strin
 			listed[id] = true
 		}
 		isNew = func(m catalog.Model) bool { return !listed[m.ID] }
+	} else if p.Account == nil {
+		// which models were listed when the picks were saved wasn't kept:
+		// there is no telling a pick of the newest model from a pick of an
+		// old one. "Released after the newest pick" reads the second as
+		// "everything listed since" — picking one old model served every
+		// newer one, and the next Save wrote them all down as the user's
+		// picks (a relay's 3 models all picked after one was clicked).
+		// Taken as they are, then: a provider saved since has PickedFrom
+		// kept, and a model listed later is added by it.
+		return picks
 	} else {
 		newest := ""
 		for _, m := range avail {
