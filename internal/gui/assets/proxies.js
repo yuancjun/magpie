@@ -1,9 +1,11 @@
 // Settings › Network's saved proxies: their rows, the test and the form.
 // app.js imports this when Settings draws them, so it weighs nothing on the core.
 
-// { id, kind, name, url, user, hasPass, hasKey, hostKey, trust, adv, err,
-// busy } while one is added or edited; kind is "proxy" or "ssh", and an
-// SSH server's url is its host:port, without ssh://
+// { id, kind, name, url, user, pass, key, hasPass, hasKey, hostKey, trust,
+// adv, err, busy } while one is added or edited; kind is "proxy" or "ssh",
+// and an SSH server's url is its host:port, without ssh://. What is typed is
+// kept here as it is typed, so a redraw of the page under the fields (the
+// kind switched, a test's answer, the window read again) doesn't empty them.
 let proxyForm = null;
 const proxyChecks = {}; // id -> { busy, out }
 const isSSH = (url) => /^ssh:\/\//i.test(url || "");
@@ -69,6 +71,7 @@ window.proxyPickTest = function (box, saved, hint) {
   }).observe(saved, { childList: true, characterData: true, subtree: true, attributeFilter: ["hidden"] });
   saved.after(test);
 };
+window.proxyFormOpen = () => !!proxyForm;
 window.renderSavedProxies = function (s) {
   const box = $("#proxiesList");
   box.replaceChildren();
@@ -132,7 +135,7 @@ function proxyFormRow(done) {
   const userText = ssh ? t("User") : t("Username (optional)");
   const passText = ssh ? t("Password") : t("Password (optional)");
   const user = input(f.user, userText);
-  const pass = input("", f.hasPass ? "••••••••" : passText, "password");
+  const pass = input(f.pass || "", f.hasPass ? "••••••••" : passText, "password");
   name.setAttribute("aria-label", t("Name"));
   url.setAttribute("aria-label", ssh ? t("SSH server") : t("Proxy address"));
   user.setAttribute("aria-label", userText);
@@ -142,7 +145,8 @@ function proxyFormRow(done) {
   save.disabled = !!f.busy;
   const cancel = el("button", "text", t("Cancel"));
   // what is typed so far, kept when the kind or Advanced redraws the form
-  const keep = () => Object.assign(f, { name: name.value, url: url.value, user: user.value });
+  // (and as it is typed, so a redraw for another reason doesn't empty it)
+  const keep = () => Object.assign(f, { name: name.value, url: url.value, user: user.value, pass: pass.value, ...(key ? { key: key.value } : null) });
   // a proxy or an SSH server: an SSH server is logged in to, and magpie
   // carries the requests through it itself (@laiuuui on X: a VPS gives
   // only SSH)
@@ -175,6 +179,7 @@ function proxyFormRow(done) {
   cancel.onclick = () => { proxyForm = null; renderSettings(); };
   for (const x of [name, url, user, pass]) {
     x.className = "words proxy-credential";
+    x.oninput = keep;
     x.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") save.onclick(); else if (e.key === "Escape") cancel.onclick(); };
   }
   const val = el("div", "proxy-controls");
@@ -188,10 +193,12 @@ function proxyFormRow(done) {
     adv.append(el("summary", "", t("Advanced")));
     const inner = el("div", "inner");
     key = el("textarea", "words proxy-key");
+    key.value = f.key || "";
     key.placeholder = f.hasKey ? t("A private key is saved; paste another to replace it") : t("Private key (instead of or with the password)");
     key.setAttribute("aria-label", t("Private key"));
     key.spellcheck = false;
     key.rows = 3;
+    key.oninput = () => { f.key = key.value; };
     key.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Escape") cancel.onclick(); };
     inner.append(key);
     if (f.hostKey) {

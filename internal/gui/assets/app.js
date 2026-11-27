@@ -4448,8 +4448,10 @@ async function load(again) {
     // the Masking page names agents and providers from what came back
     if (view === "masking") await magpie.call("masking", "refresh", again);
     // so is an open sync form (WebDAV, export, import): its passwords are
-    // never sent back, so a rebuild would empty it
-    if (view === "settings" && !syncOpen) await loadSettings();
+    // never sent back, so a rebuild would empty it — and a proxy's Add or
+    // Edit form, whose fields are what is typed and not yet saved: coming
+    // back to the window emptied them on the second click into one
+    if (view === "settings" && !syncOpen && !window.proxyFormOpen?.()) await loadSettings();
   } catch (e) {
     statusErr(e);
   }
